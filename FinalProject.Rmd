@@ -1,0 +1,99 @@
+---
+title: "FinalProject"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(forcats)
+
+#The purpose of this file is to analyze results for PA congressional general elections from 2016 and 2018 to following the redistricting lawsuit.
+#CSV files were obtained from https://electionreturns.pa.gov/ReportCenter/Reports
+file_2016 = read.csv("data/Election2016.csv")
+file_2018 = read.csv("data/Election2018.csv")
+
+#Altering dataframes to aggregate data
+retain = c("District.Name", "Party.Name", "Votes")
+file_2016 = file_2016[retain]
+file_2018 = file_2018[retain]
+
+#Fill in placeholder data for unopposed elections
+dem_3_2016 = c("3rd Congressional District", "Democratic", "0")
+file_2016 = rbind(file_2016, dem_3_2016)
+repub_13_2016 = c("13th Congressional District", "Republican", "0")
+file_2016 = rbind(file_2016, repub_13_2016)
+dem_18_2016 = c("18th Congressional District", "Democratic", "0")
+file_2016 = rbind(file_2016, dem_18_2016)
+repub_18_2018 = c("18th Congressional District", "Republican", "0")
+file_2018 = rbind(file_2018, repub_18_2018)
+
+file_2016$Votes = gsub(",","",file_2016$Votes)
+file_2018$Votes = gsub(",","",file_2018$Votes)
+
+df_2016 = file_2016 %>%
+  group_by(District.Name, Party.Name) %>%
+  summarize(Vote_Total = sum(as.numeric(as.character(Votes))))
+
+df_2018 = file_2018 %>%
+  group_by(District.Name, Party.Name) %>%
+  summarize(Vote_Total = sum(as.numeric(as.character(Votes))))
+
+#Visualization of the difference in data
+party_labels = c('Democratic' = "D", 'Republican' = "R", 'Libertarian' = "L")
+facet_labels = c('10th Congressional District' = "10th", '11th Congressional District' = "11th", '12th Congressional District' = "12th", '13th Congressional District' = "13th", '14th Congressional District' = "14th", '15th Congressional District' = "15th", '16th Congressional District' = "16th", '17th Congressional District' = "17th", '18th Congressional District' = "18th", '1st Congressional District' = "1st", '2nd Congressional District' = "2nd", '3rd Congressional District' = "3rd", '4th Congressional District' = "4th", '5th Congressional District' = "5th", '6th Congressional District' = "6th", '7th Congressional District' = "7th", '8th Congressional District' = "8th", '9th Congressional District' = "9th")
+
+plot_2016 = df_2016 %>%
+  mutate(Party.Name = fct_reorder(Party.Name, Vote_Total)) %>%
+  ggplot(aes(x = Party.Name, y = Vote_Total)) + geom_col(aes(fill = Party.Name), position = "dodge") + scale_x_discrete(labels = party_labels) + scale_y_continuous(labels = comma) + scale_fill_manual(values = c("blue", "red", "gold")) + facet_grid( ~ District.Name, labeller = as_labeller(facet_labels)) + labs(title = "Congressional Elections 2016", x = "Party", y = "Votes")
+plot_2016
+
+#ggsave("plot_2016.png")
+
+plot_2018 = df_2018 %>%
+  mutate(Party.Name = fct_reorder(Party.Name, Vote_Total)) %>%
+  ggplot(aes(x = Party.Name, y = Vote_Total)) + geom_col(aes(fill = Party.Name), position = "dodge") + scale_x_discrete(labels = party_labels) + scale_y_continuous(labels = comma) + scale_fill_manual(values = c("blue", "red", "gold")) + facet_grid( ~ District.Name, labeller = as_labeller(facet_labels)) + labs(title = "Congressional Elections 2018", x = "Party", y = "Votes")
+plot_2018
+
+#ggsave("plot_2018.png")
+
+#Now that we have visualized our data, we can now test the increasing or decreasing effect for political party votes.
+
+prep_2016 = file_2016 %>%
+  group_by(Party.Name) %>%
+  filter(Party.Name == "Democratic" | Party.Name == "Republican")
+prep_2018 = file_2018 %>%
+  group_by(Party.Name) %>%
+  filter(Party.Name == "Democratic" | Party.Name == "Republican")
+
+prep_2016 = prep_2016 %>%
+  group_by(District.Name, Party.Name) %>%
+  summarize(Vote_Total_2016 = sum(as.numeric(as.character(Votes))))
+
+prep_2018 = prep_2018 %>%
+  group_by(District.Name, Party.Name) %>%
+  summarize(Vote_Total_2018 = sum(as.numeric(as.character(Votes))))
+
+composite_df = left_join(prep_2016, prep_2018, by = c("District.Name", "Party.Name"))
+
+composite_df = composite_df %>%
+  group_by(Party.Name) %>%
+  mutate(Percent_Change = ((Vote_Total_2018 - Vote_Total_2016) / Vote_Total_2016) * 100) %>%
+  ungroup(Party.Name)
+
+composite_df$Percent_Change[composite_df$Percent_Change == Inf] = 100
+
+party_labels = c('Democratic' = "D", 'Republican' = "R")
+
+plot_composite = composite_df %>%
+  ggplot(aes(x = Party.Name, y = Percent_Change)) + geom_col(aes(fill = Party.Name), position = "dodge") + scale_x_discrete(labels = party_labels) + scale_fill_manual(values = c("blue", "red")) + facet_grid( ~ District.Name, labeller = as_labeller(facet_labels)) + labs(title = "Percent Change 2016-2018", x = "Party", y = "Percentage")
+plot_composite
+
+#ggsave("plot_composite.png")
+```
